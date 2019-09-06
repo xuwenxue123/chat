@@ -37,17 +37,24 @@ class WechatController extends Controller
         $redis->connect('127.0.0.1','6379');
         //加入缓存
         $access_token_key = 'wechat_access_token';
-        if($redis->exists($access_token_key)){
-            //存在
-            return $redis->get($access_token_key);
-        }else{
-            //不存在
-            $result = file_get_contents('https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid='.env('WECHAT_APPID').'&secret='.env('WECHAT_APPSECRET'));
+        if(!$token=$redis->get($access_token_key)){
+            // echo 111;
+            // dd(env('WECHAT_APPID'));
+            $url='https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid='.env('WECHAT_APPID').'&secret='.env('WECHAT_APPSECRET');
+            // echo $url;
+            $result = file_get_contents($url);
+            // dd($result);
             $re = json_decode($result,1);
             // dd($re);
-            $redis->set($access_token_key,$re['access_token'],$re['expires_in']);  //加入缓存
-            return $re['access_token'];
+            if(isset($re['access_token'])){
+                $redis->setex($access_token_key,$re['expires_in'],$re['access_token']);  //加入缓存
+                $token= $re['access_token'];
+            }
+      
+            
         }
+        // dd($token);
+        return $token;
     }
     public function get_user_info()
     {
@@ -66,6 +73,57 @@ class WechatController extends Controller
         //  dd($result);
         //3.展示
         return view('Wechat.get_list',['result'=>$result]);
+    }
+    
+
+    public function upload()
+    {
+        return view('Wechat.upload',[]);
+    }
+    public function do_upload(Request $request){
+          $name = 'file_name';
+          //dd($name);
+         if(!empty($request->hasFile($name)) && request()->file($name)->isValid()){
+            //$size = $request->file($name)->getClientSize() / 1024 / 1024;
+            $ext = $request->file($name)->getClientOriginalExtension();  //文件类型
+            // dd($ext);
+            $file_name = time().rand(1000,9999).'.'.$ext;
+            // dd($file_name);
+            $path = request()->file($name)->storeAs('wechat\voice',$file_name);
+            // dd($path);
+            $path = realpath('./storage/'.$path);
+            // dd($path);
+            // $type="";
+            $url = 'https://api.weixin.qq.com/cgi-bin/media/upload?access_token='.$this->get_wechat_access_token().'&type=image';
+            // dd($url);
+            $result = $this->curl_upload($url,$path);
+            // d($result);
+            dd($result);
+        }
+    }
+
+    public function curl_upload($url,$path)
+    {   
+        // echo $url;
+        $curl = \curl_init($url);
+        //设置获取的信息以文件流的形式返回，而不是直接输出。
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+        //设置post方式提交
+        curl_setopt($curl, CURLOPT_POST, 1);
+        //设置post数据
+        $form_data = [
+            'meida' => new \CURLFile($path)
+        ];
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $form_data);
+        
+        //执行命令
+        $data = curl_exec($curl);
+        var_dump(curl_error($curl));
+         //关闭URL请求
+        curl_close($curl);
+        //显示获得的数据
+        return $data;
     }
 }
 

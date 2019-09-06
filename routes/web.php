@@ -185,3 +185,6 @@ Route::get('/wechat/get_user_info','WechatController@get_user_info');//详情
 route::get('/login/loging','wechat\LoginController@loging');
 route::get('logss','wechat\LoginController@logss');
 route::get('code','wechat\LoginController@code');
+
+Route::get('/wechat/upload','WechatController@upload');
+Route::post('/wechat/do_upload','WechatController@do_upload'); //上传
